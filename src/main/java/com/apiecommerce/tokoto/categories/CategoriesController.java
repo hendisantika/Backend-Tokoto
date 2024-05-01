@@ -35,7 +35,7 @@ public class CategoriesController {
 
     @GetMapping(path = "/{imageName}", produces = MediaType.IMAGE_JPEG_VALUE)
     public byte[] downloadImageFromFileSystem(@PathVariable String imageName) throws IOException {
-        return categoriesService.downloadImageCategoriesFromSystem(imageName);
+        return categoriesService.downloadImageFromMinioBucket(imageName);
     }
 
     /**

@@ -1,6 +1,10 @@
 package com.apiecommerce.tokoto.categories;
 
+import com.apiecommerce.tokoto.storage.StorageService;
 import com.apiecommerce.tokoto.utils.ImageUtils;
+import io.minio.GetObjectArgs;
+import io.minio.MinioClient;
+import io.minio.errors.MinioException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -10,10 +14,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.InputStream;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * Kelas layanan untuk menangani operasi yang terkait dengan Kategori.
@@ -24,8 +30,14 @@ public class CategoriesService {
     @Autowired
     private CategoriesRepository categoriesRepository;
 
-    @Value("${file.categories.path}")
-    private String uploadPath;
+    @Value("${minio.bucket.name}")
+    private String bucketNames;
+
+    @Autowired
+    private StorageService storageService;
+
+    @Autowired
+    private MinioClient minioClient;
 
     /**
      * Membuat kategori baru berdasarkan permintaan yang diberikan.
@@ -45,8 +57,7 @@ public class CategoriesService {
         categories.setImageType(file.getContentType());
         categories.setImageData(imageDatas);
 
-        Path imagePath = Paths.get(uploadPath, hashedFileName);
-        Files.write(imagePath, imageData);
+        storageService.uploadImageToMinio(new ByteArrayInputStream(imageData), hashedFileName, file.getContentType());
 
         categoriesRepository.save(categories);
 
@@ -54,9 +65,25 @@ public class CategoriesService {
     }
 
     @Transactional(readOnly = true)
-    public byte[] downloadImageCategoriesFromSystem(String fileName) throws IOException {
-        Path imagePath = Paths.get(uploadPath, fileName);
-        return Files.readAllBytes(imagePath);
+    public byte[] downloadImageFromMinioBucket(String objectName) throws IOException {
+        try {
+            String bucketName = bucketNames;
+            InputStream stream = minioClient.getObject(
+                    GetObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .build()
+            );
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            int len;
+            byte[] buffer = new byte[4096];
+            while ((len = stream.read(buffer, 0, buffer.length)) != -1) {
+                baos.write(buffer, 0, len);
+            }
+            return baos.toByteArray();
+        } catch (MinioException | InvalidKeyException | NoSuchAlgorithmException e) {
+            throw new IOException("Error occurred while downloading image from Minio: " + e.getMessage());
+        }
     }
 
 

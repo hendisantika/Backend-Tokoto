@@ -1,20 +1,34 @@
 version: '3.8'
 
 services:
+  minio:
+    image: docker.io/bitnami/minio:latest
+    ports:
+      - '9001:9001'
+    networks:
+      - minionetwork
+    volumes:
+      - 'minio_data:/data'
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_DEFAULT_BUCKETS: inventaris
+
   mysql:
     image: mysql:latest
     container_name: mysqldb
     ports:
       - "3307:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_USER: root
       MYSQL_DATABASE: tokoto
     volumes:
-      - mysql:/data/mysql
+      - mysqldb:/data/mysql
     restart: unless-stopped
 
   spring:
     build: .
+    image: spring-management-inventaris
     container_name: spring-inventaris
     ports:
       - "8000:8000"
@@ -25,10 +39,19 @@ services:
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
     volumes:
-      - inventaris_data:/app/static/image/upload
+      - minio_data:/app/static/image/upload
       - inventaris_data:/app/static/image/categories
       - inventaris_data:/app/static/image/message
       - inventaris_data:/app/static/image/users
-  volumes:
-    inventaris_data:
-      driver: local
+
+networks:
+  minionetwork:
+    driver: bridge
+
+volumes:
+  minio_data:
+    driver: local
+  mysqldb:
+    driver: local
+  inventaris_data:
+    driver: local

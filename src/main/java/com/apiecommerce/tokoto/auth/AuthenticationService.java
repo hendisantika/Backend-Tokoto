@@ -19,14 +19,19 @@ import com.apiecommerce.tokoto.user.UserProjection;
 import com.apiecommerce.tokoto.user.UserRepository;
 import com.apiecommerce.tokoto.utils.ImageUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.minio.GetObjectArgs;
+import io.minio.MinioClient;
+import io.minio.errors.MinioException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
@@ -39,6 +44,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -62,6 +69,18 @@ public class AuthenticationService {
 
     @Value("${server.host}")
     private String HOST;
+
+    @Autowired
+    private MinioClient minioClient;
+
+    @Value("${minio.url}")
+    private String minioUrl;
+
+    @Value("${minio.access.name}")
+    private String minioAccessName;
+
+    @Value("${minio.access.secret}")
+    private String minioAccessSecret;
 
     public AuthenticationResponse register(RegisterRequest request) {
         if (repository.findByEmail(request.getEmail()).isPresent()) {
@@ -126,7 +145,7 @@ public class AuthenticationService {
 
     public UserProjection findUserByEmail(String email) {
         User user = repository.findByEmail(email)
-                .orElseThrow(() -> new  ResponseStatusException(HttpStatus.NOT_FOUND, "Email dengan alamat: " + email + " Tidak dapat ditemukan"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Email dengan alamat: " + email + " Tidak dapat ditemukan"));
 
         return UserProjection.builder()
                 .email(user.getEmail())
@@ -182,7 +201,7 @@ public class AuthenticationService {
     public void saveUserProfile(String email, MultipartFile file) {
         try {
             User user = repository.findByEmail(email)
-                    .orElseThrow(() -> new  ResponseStatusException(HttpStatus.NOT_FOUND, "Email dengan alamat: " + email + " Tidak dapat ditemukan"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Email dengan alamat: " + email + " Tidak dapat ditemukan"));
 
             List<String> allowedExtensions = Arrays.asList("PNG", "png", "JPG", "jpg", "JPEG", "jpeg", "webp");
 
@@ -226,7 +245,7 @@ public class AuthenticationService {
         final String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
         final String refreshToken;
         final String userEmail;
-        if (authHeader == null ||!authHeader.startsWith("Bearer ")) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return;
         }
         refreshToken = authHeader.substring(7);
@@ -247,15 +266,18 @@ public class AuthenticationService {
         }
     }
 
-    private void setDefaultProfile(User user) {
+    public void setDefaultProfile(User user) {
         try {
-            Resource resource = new ClassPathResource("static/image/upload/default_profile.jpg");
-            byte[] defaultProfile = Files.readAllBytes(resource.getFile().toPath());
+            GetObjectArgs getObjectArgs = GetObjectArgs.builder()
+                    .bucket("inventaris")
+                    .object("default_profile.jpg")
+                    .build();
+            byte[] defaultProfile = minioClient.getObject(getObjectArgs).readAllBytes();
             user.setProfileName("default_profile.jpg");
-            user.setProfileType("image/jpg");
+            user.setProfileType(MediaType.IMAGE_JPEG_VALUE);
             user.setProfileData(defaultProfile);
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (MinioException | IOException | NoSuchAlgorithmException | InvalidKeyException e) {
+            e.printStackTrace(); // Adjust error handling as needed
         }
     }
 }

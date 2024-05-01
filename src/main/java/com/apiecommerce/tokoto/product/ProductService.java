@@ -90,9 +90,6 @@ public class ProductService {
     @Value("${minio.bucket.name}")
     private String bucketNames;
 
-    @Value("${file.upload.path}")
-    private String uploadPath;
-
     @Value("${host}")
     private String HOST;
 
@@ -109,21 +106,17 @@ public class ProductService {
         Optional<User> userOptional = userRepository.findByEmail(userEmail);
         User user = userOptional.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
-        List<byte[]> imageDatas = new ArrayList<>();
         List<String> imageNames = new ArrayList<>();
         List<String> imageTypes = new ArrayList<>();
-
+        List<byte[]> imageDatas = new ArrayList<>();
         for (MultipartFile file : files) {
             byte[] imageData = file.getBytes();
-            imageDatas.add(imageData);
             imageNames.add(ImageUtils.hashFileName(file.getOriginalFilename(), file.getBytes()));
             imageTypes.add(file.getContentType());
 
-            // Simpan gambar ke direktori upload
-            Path imagePath = Paths.get(uploadPath, imageNames.get(imageNames.size() - 1));
-            Files.write(imagePath, imageData);
             storageService.uploadImageToMinio(new ByteArrayInputStream(imageData), imageNames.get(imageNames.size() - 1), file.getContentType());
         }
+
         List<CategoriesRequest> categories = request.getCategories();
         List<Categories> categoryList = new ArrayList<>();
         for (CategoriesRequest categoriesRequest : categories) {
@@ -150,7 +143,7 @@ public class ProductService {
                 .categories(categoryList)
                 .units(request.getUnits())
 		        .imageName(imageNames)
-		        .imageData(imageDatas)
+                .imageData(imageDatas)
 		        .imageType(imageTypes)
                 .uploadedBy(user)
                 .build();
@@ -250,23 +243,13 @@ public class ProductService {
                             "Product dengan ID : " + productId + " tidak ditemukan!"));
 
 	        if (files != null && !files.isEmpty()) {
-		        for (String imageName : product.getImageName()) {
-			        Path imagePath = Paths.get(uploadPath, imageName);
-			        Files.deleteIfExists(imagePath);
-		        }
-
-		        // Tambahkan gambar baru
+                // Tambahkan gambar baru
 		        for (MultipartFile file : files) {
 			        String hashedFileName = ImageUtils.hashFileName(file.getOriginalFilename(), file.getBytes());
-			        byte[] imageData = ImageUtils.compressImage(file.getBytes());
-
 			        product.getImageName().add(hashedFileName);
 			        product.getImageType().add(file.getContentType());
-			        product.getImageData().add(imageData);
 
-			        // Simpan gambar baru ke direktori upload
-			        Path imagePath = Paths.get(uploadPath, hashedFileName);
-			        Files.write(imagePath, imageData);
+                    storageService.uploadImageToMinio(file.getInputStream(), hashedFileName, file.getContentType());
 		        }
 	        }
 
