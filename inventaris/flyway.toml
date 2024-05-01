@@ -8,8 +8,8 @@ mixed = true
 outOfOrder = true
 validateMigrationNaming = true
 
-[flyway.check]
-majorTolerance = 0
+  [flyway.check]
+  majorTolerance = 0
 
 [flywayDesktop]
 developmentEnvironment = "development"
@@ -21,3 +21,8 @@ filterFile = "filter.rgf"
 
 [redgateCompare.mysql.options.ignores]
 ignoreNewlinesInTextObjects = "off"
+
+[environments.tokoto]
+url = "jdbc:mysql://127.0.0.1:3307"
+schemas = [ "_user" ]
+displayName = "tokotodbs"
