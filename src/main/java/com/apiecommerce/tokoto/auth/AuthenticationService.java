@@ -11,6 +11,7 @@ import com.apiecommerce.tokoto.location.regency.Regency;
 import com.apiecommerce.tokoto.location.regency.RegencyService;
 import com.apiecommerce.tokoto.location.village.Village;
 import com.apiecommerce.tokoto.location.village.VillageService;
+import com.apiecommerce.tokoto.storage.StorageService;
 import com.apiecommerce.tokoto.token.Token;
 import com.apiecommerce.tokoto.token.TokenRepository;
 import com.apiecommerce.tokoto.token.TokenType;
@@ -64,9 +65,6 @@ public class AuthenticationService {
     private final DistrictService districtService;
     private final VillageService villageService;
 
-    @Value("${file.users.path}")
-    private String uploadPath;
-
     @Value("${server.host}")
     private String HOST;
 
@@ -81,6 +79,9 @@ public class AuthenticationService {
 
     @Value("${minio.access.secret}")
     private String minioAccessSecret;
+
+    @Autowired
+    private StorageService storageService;
 
     public AuthenticationResponse register(RegisterRequest request) {
         if (repository.findByEmail(request.getEmail()).isPresent()) {
@@ -214,8 +215,9 @@ public class AuthenticationService {
 
                 String hashedFileName = ImageUtils.hashFileName(originalFileName, file.getBytes());
                 byte[] profileData = ImageUtils.compressImage(file.getBytes());
-                Path imagePath = Paths.get(uploadPath, hashedFileName);
-                Files.write(imagePath, profileData);
+//                Path imagePath = Paths.get(uploadPath, hashedFileName);
+//                Files.write(imagePath, profileData);
+                storageService.uploadImageToMinio(file.getInputStream(), hashedFileName, file.getContentType());
 
                 user.setProfileName(hashedFileName);
                 user.setProfileType(file.getContentType());
